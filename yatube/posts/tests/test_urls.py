@@ -50,16 +50,17 @@ class StaticURLTests(TestCase):
     def test_urls_templates_used(self):
         """Проверяем, верный ли шаблон используется при обращении по
         соответствующему адресу."""
-        urls_templates = {
-            '/': 'posts/index.html',
-            f'/group/{StaticURLTests.group.slug}/': 'posts/group_list.html',
-            f'/profile/{StaticURLTests.author.username}/':
-            'posts/profile.html',
-            f'/posts/{StaticURLTests.post.id}/': 'posts/post_detail.html',
-            f'/posts/{StaticURLTests.post.id}/edit/': 'posts/create_post.html',
-            '/create/': 'posts/create_post.html',
-        }
-        for url, expected_template in urls_templates.items():
-            with self.subTest(url=url):
-                response = self.authorized_client.get(url)
-                self.assertTemplateUsed(response, expected_template)
+        urls_templates = [
+            ('/', 'posts/index.html'),
+            (f'/group/{StaticURLTests.group.slug}/', 'posts/group_list.html'),
+            (f'/profile/{StaticURLTests.author.username}/',
+             'posts/profile.html'),
+            (f'/posts/{StaticURLTests.post.id}/', 'posts/post_detail.html'),
+            (f'/posts/{StaticURLTests.post.id}/edit/',
+             'posts/create_post.html'),
+            ('/create/', 'posts/create_post.html'),
+        ]
+        for url_expected_template in urls_templates:
+            with self.subTest(url=url_expected_template[0]):
+                response = self.authorized_client.get(url_expected_template[0])
+                self.assertTemplateUsed(response, url_expected_template[1])
