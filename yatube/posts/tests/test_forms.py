@@ -1,12 +1,15 @@
 from django.test import TestCase, Client
 from django.urls import reverse
 
-from posts.forms import PostForm
 from posts.models import Post, Group, User
 
 
 class PostFormTests(TestCase):
     """Форма для создания и редактирования поста."""
+    def setUp(self):
+        self.authorized_client = Client()
+        self.authorized_client.force_login(PostFormTests.author)
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -15,14 +18,11 @@ class PostFormTests(TestCase):
             slug='test-slug',
         )
         cls.author = User.objects.create(username='TestUser')
-        cls.authorized_client = Client()
-        cls.authorized_client.force_login(cls.author)
         cls.post = Post.objects.create(
             text='Текст тестового поста',
             author=cls.author,
             group=cls.group,
         )
-        cls.form = PostForm()
 
     def test_postform_creates_post(self):
         """Валидная форма PostForm создаёт запись в БД."""
@@ -31,7 +31,7 @@ class PostFormTests(TestCase):
             'text': 'Текст из формы',
             'group': PostFormTests.group.pk,
         }
-        response = PostFormTests.authorized_client.post(
+        response = self.authorized_client.post(
             reverse('posts:post_create'),
             data=form_data,
             follow=True
@@ -40,13 +40,13 @@ class PostFormTests(TestCase):
             response,
             reverse(
                 'posts:profile',
-                kwargs={'username': 'TestUser'}
+                kwargs={'username': PostFormTests.author.username}
             )
         )
         self.assertEqual(Post.objects.count(), posts_count + 1)
         self.assertTrue(
             Post.objects.filter(
-                text='Текст из формы',
+                text=form_data['text'],
                 group=PostFormTests.group,
                 author=PostFormTests.author
             ).exists(),
@@ -59,7 +59,7 @@ class PostFormTests(TestCase):
             'text': 'Отредактировано',
             'group': PostFormTests.group.pk,
         }
-        response = PostFormTests.authorized_client.post(
+        response = self.authorized_client.post(
             reverse(
                 'posts:post_edit',
                 kwargs={'post_id': PostFormTests.post.id},
@@ -76,7 +76,7 @@ class PostFormTests(TestCase):
         )
         self.assertTrue(
             Post.objects.filter(
-                text='Отредактировано',
+                text=form_data['text'],
                 group=PostFormTests.group,
                 author=PostFormTests.author
             ).exists(),

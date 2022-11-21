@@ -1,19 +1,22 @@
 from django.test import Client, TestCase
 from django.urls import reverse
-from django.utils import timezone
 from django import forms
+from random import randint
 
 from ..models import User, Post, Group
+from yatube import settings
 
 
 class PostViewsTest(TestCase):
+    def setUp(self):
+        self.authorized_client = Client()
+        self.authorized_client.force_login(PostViewsTest.author)
+        self.guest_client = Client()
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.guest_client = Client()
         cls.author = User.objects.create_user(username='TestUser')
-        cls.authorized_client = Client()
-        cls.authorized_client.force_login(cls.author)
         cls.group_1 = Group.objects.create(
             title='Первая тестовая группа',
             slug='test-slug-1',
@@ -27,6 +30,19 @@ class PostViewsTest(TestCase):
             group=cls.group_1,
             author=cls.author
         )
+
+    def fill_post_fields(self, slug_num):
+        """Возвращает словарь, где ключами являются атрибуты поста,
+        а ключами - тестовые значения из setUpClass. Параметр slug_num
+        влияет на то, какая группа будет выбрана в словаре из двух тестовых."""
+        post_fields = {}
+        post_fields['text'] = PostViewsTest.test_post.text
+        if slug_num == 1:
+            post_fields['group'] = PostViewsTest.group_1
+        else:
+            post_fields['group'] = PostViewsTest.group_2
+        post_fields['author'] = PostViewsTest.author
+        return post_fields
 
     def test_views_use_correct_templates(self):
         """Проверяем, что view-функции приложения posts
@@ -59,57 +75,30 @@ class PostViewsTest(TestCase):
     def test_post_create_view_show_correct_context(self):
         """Проверяем, что post_create и post_view передает правильный
         context (форма) шаблону при get-запросе."""
-        responses = [
-            PostViewsTest.authorized_client.get(
-                reverse('posts:post_create')
-            ),
-            PostViewsTest.authorized_client.get(
-                reverse(
-                    'posts:post_edit',
-                    kwargs={'post_id': PostViewsTest.test_post.id}
-                )
+        urls = [
+            reverse('posts:post_create'),
+            reverse(
+                'posts:post_edit',
+                kwargs={'post_id': PostViewsTest.test_post.id}
             ),
         ]
         form_fields = {
             'text': forms.fields.CharField,
             'group': forms.fields.ChoiceField,
         }
-        for response in responses:
+        for url in urls:
             for value, expected in form_fields.items():
                 with self.subTest(value=value):
+                    response = self.authorized_client.get(url)
                     form_field = response.context.get('form').fields.get(value)
                     self.assertIsInstance(form_field, expected)
 
-    def test_post_edit_view_shows_correct_context(self):
-        """Проверяем, что post_edit передает правильный
-        context шаблону при post-запросе"""
-
-        response = PostViewsTest.authorized_client.post(
-            reverse(
-                'posts:post_edit',
-                kwargs={'post_id': PostViewsTest.test_post.id}
-            )
-        )
-        form_fields_post = {
-            'text': 'Тестовый пост',
-            'group': PostViewsTest.group_1,
-            'author': PostViewsTest.author,
-        }
-        form = response.context.get('form').instance
-        for value, expected in form_fields_post.items():
-            with self.subTest(value=value):
-                self.assertEqual(getattr(form, value), expected)
-
-    def test_index_shows_correct_context_and_paginator(self):
+    def test_index_shows_correct_context(self):
         """Проверяем, что index view передает правильный
         context шаблону"""
-        response = PostViewsTest.guest_client.get(reverse('posts:index'))
+        response = self.guest_client.get(reverse('posts:index'))
         object_list = response.context['page_obj'].object_list
-        post_fields = {
-            'text': 'Тестовый пост',
-            'group': PostViewsTest.group_1,
-            'author': PostViewsTest.author,
-        }
+        post_fields = self.fill_post_fields(slug_num=1)
         self.assertIn(
             PostViewsTest.test_post,
             object_list,
@@ -123,14 +112,18 @@ class PostViewsTest(TestCase):
                     'Данные поста неверно переданы в шаблон'
                 )
 
-    def test_group_list_view_shows_correct_context_and_paginator(self):
+    def test_group_list_view_shows_correct_context(self):
         """Проверяем, что group_list view передает правильный
         context шаблону"""
-        response = PostViewsTest.guest_client.get(
+        response = self.guest_client.get(
             reverse(
                 'posts:group_list',
-                kwargs={'slug': 'test-slug-2'}
+                kwargs={'slug': PostViewsTest.group_2.slug}
             )
+        )
+        self.assertTrue(
+            response.context['group'],
+            'Группа не была передана в контексте страницы'
         )
         object_list = response.context['page_obj'].object_list
         self.assertNotIn(
@@ -138,23 +131,7 @@ class PostViewsTest(TestCase):
             object_list,
             'Ошибка: пост передан в контекст страницы чужой группы'
         )
-        response = PostViewsTest.guest_client.get(
-            reverse(
-                'posts:group_list',
-                kwargs={'slug': 'test-slug-1'}
-            )
-        )
-        object_list = response.context['page_obj'].object_list
-        self.assertIn(
-            PostViewsTest.test_post,
-            object_list,
-            'Ошибка: пост не передан в контекст своей группы'
-        )
-        post_attr = {
-            'text': 'Тестовый пост',
-            'group': PostViewsTest.group_1,
-            'author': PostViewsTest.author,
-        }
+        post_attr = self.fill_post_fields(slug_num=1)
         for value, expected in post_attr.items():
             with self.subTest(value=value):
                 self.assertEqual(
@@ -163,14 +140,18 @@ class PostViewsTest(TestCase):
                     'Данные поста неверно переданы в шаблон'
                 )
 
-    def test_post_profile_view_shows_correct_context_and_paginator(self):
+    def test_post_profile_view_shows_correct_context(self):
         """Проверяем, что profile_view передает правильный
         контекст"""
-        response = PostViewsTest.guest_client.get(
+        response = self.guest_client.get(
             reverse(
                 'posts:profile',
-                kwargs={'username': 'TestUser'}
+                kwargs={'username': PostViewsTest.author.username}
             )
+        )
+        self.assertTrue(
+            response.context['author'],
+            'Группа не была передана в контексте страницы'
         )
         object_list = response.context['page_obj'].object_list
         self.assertIn(
@@ -179,30 +160,24 @@ class PostViewsTest(TestCase):
             ('Ошибка: пост не был передан'
              ' в контексте страницы профиля автора поста')
         )
-        post_attrs = {
-            'text': 'Тестовый пост',
-            'group': PostViewsTest.group_1,
-            'author': PostViewsTest.author,
-        }
+        post_attrs = self.fill_post_fields(slug_num=1)
         for value, expected in post_attrs.items():
             with self.subTest(value=value):
                 self.assertEqual(
                     getattr(PostViewsTest.test_post, value),
-                    expected
+                    expected,
+                    'Данные поста неверно переданы в шаблон'
                 )
 
     def test_post_detail_view_shows_correct_context(self):
-        response = PostViewsTest.guest_client.get(
+        """Проверяем, что detail_view правильно передает context."""
+        response = self.guest_client.get(
             reverse(
                 'posts:post_detail',
                 kwargs={'post_id': PostViewsTest.test_post.id}
             )
         )
-        post_attrs = {
-            'text': 'Тестовый пост',
-            'group': PostViewsTest.group_1,
-            'author': PostViewsTest.author,
-        }
+        post_attrs = self.fill_post_fields(slug_num=1)
         post = response.context['post']
         for value, expected in post_attrs.items():
             with self.subTest(value=value):
@@ -212,24 +187,19 @@ class PostViewsTest(TestCase):
         """Проверяем, что если при создании поста указать
         группу, он появится на главной, странице группы
         и профиле пользователя"""
-        responses = [
-            PostViewsTest.guest_client.get(
-                reverse('posts:index')
+        urls = [
+            reverse('posts:index'),
+            reverse(
+                'posts:group_list',
+                kwargs={'slug': PostViewsTest.group_1.slug}
             ),
-            PostViewsTest.guest_client.get(
-                reverse(
-                    'posts:group_list',
-                    kwargs={'slug': 'test-slug-1'}
-                )
+            reverse(
+                'posts:profile',
+                kwargs={'username': PostViewsTest.author.username}
             ),
-            PostViewsTest.guest_client.get(
-                reverse(
-                    'posts:profile',
-                    kwargs={'username': 'TestUser'}
-                )
-            )
         ]
-        for response in responses:
+        for url in urls:
+            response = self.guest_client.get(url)
             object_list = response.context['page_obj'].object_list
             self.assertIn(
                 PostViewsTest.test_post,
@@ -240,52 +210,79 @@ class PostViewsTest(TestCase):
 
 
 class TestPaginator(TestCase):
+    def setUp(self):
+        self.authorized_client = Client()
+        self.authorized_client.force_login(TestPaginator.author)
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.author = User.objects.create_user(username='TestUser')
-        cls.authorized_client = Client()
-        cls.authorized_client.force_login(cls.author)
         cls.group = Group.objects.create(
             title='Первая тестовая группа',
             slug='test-slug-1',
         )
         cls.post_list = []
-        for i in range(1, 14):
+        cls.first_page_obj_count = settings.POSTS_VIEWED
+        cls.second_page_obj_count = randint(1, settings.POSTS_VIEWED)
+        posts_created_count = cls.first_page_obj_count \
+            + cls.second_page_obj_count
+        for i in range(0, posts_created_count):
             cls.post_list.append(
-                Post.objects.create(
+                Post(
                     text=f'Текст тестового поста #{i}',
                     author=cls.author,
                     group=cls.group,
-                    pub_date=timezone.now() - i * timezone.timedelta(hours=1)
                 )
             )
+        Post.objects.bulk_create(
+            cls.post_list
+        )
 
-    def test_pagination(self):
+    def test_pagination_first_page(self):
+        """Проверяем корректность работы паджинатора
+        (кол-во постов на первой странице)"""
         reversed_urls = [
             reverse('posts:index'),
-            reverse('posts:group_list', kwargs={'slug': 'test-slug-1'}),
-            reverse('posts:profile', kwargs={'username': 'TestUser'})
+            reverse(
+                'posts:group_list',
+                kwargs={'slug': TestPaginator.group.slug}
+            ),
+            reverse(
+                'posts:profile',
+                kwargs={'username': TestPaginator.author.username}
+            )
         ]
-        responses_urls = []
         for url in reversed_urls:
-            responses_urls.append(
-                (PostViewsTest.authorized_client.get(url), url)
-            )
-        for response_url in responses_urls:
+            response = self.authorized_client.get(url)
             self.assertEqual(
-                10,
-                len(response_url[0].context['page_obj'].object_list),
-                f'Количество постов не равно 10 на первой странице {url}'
+                TestPaginator.first_page_obj_count,
+                len(response.context['page_obj']),
+                ('Количество постов не равно'
+                 f' {TestPaginator.first_page_obj_count}'
+                 f'на первой странице {url}')
             )
-        responses_urls = []
+
+    def pagination_second_page(self):
+        """Проверяем корректность работы паджинатора (кол-во)
+        постов на второй странице."""
+        reversed_urls = [
+            reverse('posts:index'),
+            reverse(
+                'posts:group_list',
+                kwargs={'slug': TestPaginator.group.slug}
+            ),
+            reverse(
+                'posts:profile',
+                kwargs={'username': TestPaginator.author.username}
+            )
+        ]
         for url in reversed_urls:
-            responses_urls.append(
-                (PostViewsTest.authorized_client.get(url + '?page=2'), url)
-            )
-        for response_url in responses_urls:
+            response = self.authorized_client.get(url + '?page=2')
             self.assertEqual(
-                3,
-                len(response_url[0].context['page_obj'].object_list),
-                f'Количество постов не равно 3 на второй странице {url}'
+                TestPaginator.second_page_obj_count,
+                len(response.context['page_obj']),
+                (f'Количество постов не равно'
+                 f' {TestPaginator.second_page_obj_count}'
+                 f' на второй странице {url}')
             )
