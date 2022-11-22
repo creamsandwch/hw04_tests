@@ -1,10 +1,11 @@
+from random import randint
+
 from django.test import Client, TestCase
 from django.urls import reverse
 from django import forms
-from random import randint
 
 from ..models import User, Post, Group
-from yatube import settings
+from django.conf import settings
 
 
 class PostViewsTest(TestCase):
@@ -121,15 +122,10 @@ class PostViewsTest(TestCase):
                 kwargs={'slug': PostViewsTest.group_2.slug}
             )
         )
-        self.assertTrue(
-            response.context['group'],
-            'Группа не была передана в контексте страницы'
-        )
-        object_list = response.context['page_obj'].object_list
-        self.assertNotIn(
-            PostViewsTest.test_post,
-            object_list,
-            'Ошибка: пост передан в контекст страницы чужой группы'
+        self.assertContains(
+            response,
+            PostViewsTest.group_2,
+            msg_prefix='В контекст не передана группа, или передана неверная:'
         )
         post_attr = self.fill_post_fields(slug_num=1)
         for value, expected in post_attr.items():
@@ -140,6 +136,20 @@ class PostViewsTest(TestCase):
                     'Данные поста неверно переданы в шаблон'
                 )
 
+    def test_group_list_view_shows_correct_group(self):
+        response = self.guest_client.get(
+            reverse(
+                'posts:group_list',
+                kwargs={'slug': PostViewsTest.group_2.slug}
+            )
+        )
+        object_list = response.context['page_obj'].object_list
+        self.assertNotIn(
+            PostViewsTest.test_post,
+            object_list,
+            'Ошибка: пост передан в контекст страницы чужой группы'
+        )
+
     def test_post_profile_view_shows_correct_context(self):
         """Проверяем, что profile_view передает правильный
         контекст"""
@@ -149,16 +159,13 @@ class PostViewsTest(TestCase):
                 kwargs={'username': PostViewsTest.author.username}
             )
         )
-        self.assertTrue(
-            response.context['author'],
-            'Группа не была передана в контексте страницы'
-        )
-        object_list = response.context['page_obj'].object_list
-        self.assertIn(
-            PostViewsTest.test_post,
-            object_list,
-            ('Ошибка: пост не был передан'
-             ' в контексте страницы профиля автора поста')
+        self.assertContains(
+            response,
+            PostViewsTest.author,
+            msg_prefix=(
+                'В контекст не передан пользователь-автор,'
+                ' или передан неверный:'
+            )
         )
         post_attrs = self.fill_post_fields(slug_num=1)
         for value, expected in post_attrs.items():
@@ -168,6 +175,21 @@ class PostViewsTest(TestCase):
                     expected,
                     'Данные поста неверно переданы в шаблон'
                 )
+
+    def test_post_profile_view_shows_post(self):
+        response = self.guest_client.get(
+            reverse(
+                'posts:profile',
+                kwargs={'username': PostViewsTest.author.username}
+            )
+        )
+        object_list = response.context['page_obj'].object_list
+        self.assertIn(
+            PostViewsTest.test_post,
+            object_list,
+            ('Ошибка: пост не был передан'
+             ' в контексте страницы профиля автора поста')
+        )
 
     def test_post_detail_view_shows_correct_context(self):
         """Проверяем, что detail_view правильно передает context."""
@@ -225,9 +247,11 @@ class TestPaginator(TestCase):
         cls.post_list = []
         cls.first_page_obj_count = settings.POSTS_VIEWED
         cls.second_page_obj_count = randint(1, settings.POSTS_VIEWED)
-        posts_created_count = cls.first_page_obj_count \
+        posts_created_count = (
+            cls.first_page_obj_count
             + cls.second_page_obj_count
-        for i in range(0, posts_created_count):
+        )
+        for i in range(posts_created_count):
             cls.post_list.append(
                 Post(
                     text=f'Текст тестового поста #{i}',
