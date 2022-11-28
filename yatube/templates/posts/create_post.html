@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 {% extends 'base.html' %}
+{% load thumbnail %}
 
 {% block title %}
 {% if is_edit is True %}Редактировать пост{% else %}Новый пост{% endif %}
@@ -18,9 +19,9 @@
         <div class="card-body">
           {% include 'includes/form_errors_display.html' %}  
           {% if is_edit is True %}
-          <form method="post" action="{% url 'posts:post_edit' form.instance.id %}">
+          <form method="post" enctype="multipart/form-data" action="{% url 'posts:post_edit' form.instance.id %}">
           {% else %}
-          <form method="post" action="{% url 'posts:post_create' %}">
+          <form method="post" enctype="multipart/form-data" action="{% url 'posts:post_create' %}">
           {% endif %}
           {% csrf_token %}
           {% include 'includes/form_fields.html' %}

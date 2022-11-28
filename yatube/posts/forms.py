@@ -12,3 +12,8 @@ class PostForm(forms.ModelForm):
             'group': 'Группа',
             'image': 'Картинка',
         }
+    field_order = {
+        'text',
+        'group',
+        'image',
+    }

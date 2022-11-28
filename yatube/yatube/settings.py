@@ -12,7 +12,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 SECRET_KEY = 'lcgy06%6)qtf8n5vzfetazxhubev@=%lgxi7^)=5&6jegv!r$k'
 
-DEBUG = False
+DEBUG = True
 
 CSRF_FAILURE_VIEW = 'core.views.csrf_failure'
 

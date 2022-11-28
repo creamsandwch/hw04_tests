@@ -1,11 +1,17 @@
 from random import randint
+import shutil
+import tempfile
 
-from django.test import Client, TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django import forms
 
 from ..models import User, Post, Group
 from django.conf import settings
+
+
+TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 
 
 class PostViewsTest(TestCase):
@@ -29,12 +35,12 @@ class PostViewsTest(TestCase):
         cls.test_post = Post.objects.create(
             text='Тестовый пост',
             group=cls.group_1,
-            author=cls.author
+            author=cls.author,
         )
 
     def fill_post_fields(self, slug_num):
         """Возвращает словарь, где ключами являются атрибуты поста,
-        а ключами - тестовые значения из setUpClass. Параметр slug_num
+        а значениями - тестовые значения из setUpClass. Параметр slug_num
         влияет на то, какая группа будет выбрана в словаре из двух тестовых."""
         post_fields = {}
         post_fields['text'] = PostViewsTest.test_post.text
@@ -310,3 +316,95 @@ class TestPaginator(TestCase):
                  f' {TestPaginator.second_page_obj_count}'
                  f' на второй странице {url}')
             )
+
+
+@override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
+class ThumbnailTest(TestCase):
+    def setUp(self):
+        self.authorized_client = Client()
+        self.authorized_client.force_login(PostViewsTest.author)
+        self.guest_client = Client()
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.author = User.objects.create_user(username='TestUser')
+        cls.group = Group.objects.create(
+            title='Тестовая группа',
+            slug='test-slug',
+        )
+        cls.small_gif = (
+            b'\x47\x49\x46\x38\x39\x61\x02\x00'
+            b'\x01\x00\x80\x00\x00\x00\x00\x00'
+            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
+            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
+            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
+            b'\x0A\x00\x3B'
+        )
+        cls.uploaded_image = SimpleUploadedFile(
+            name='small.gif',
+            content=cls.small_gif,
+            content_type='image/gif',
+        )
+        cls.test_post = Post.objects.create(
+            text='Тестовый пост',
+            group=cls.group,
+            author=cls.author,
+            image=cls.uploaded_image
+        )
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
+
+    def test_thumbnail_sent_in_post_form(self):
+        posts_count = Post.objects.count()
+        form_data = {
+            'text': 'Тестовый текст',
+            'author': ThumbnailTest.author.pk,
+            'group': ThumbnailTest.group.pk,
+        }
+        self.authorized_client.post(
+            reverse('posts:post_create'),
+            data=form_data,
+            follow=True
+        )
+        self.assertEqual(posts_count + 1, Post.objects.count())
+        self.assertTrue(
+            Post.objects.filter(
+                text=form_data['text'],
+                group=ThumbnailTest.group,
+                author=ThumbnailTest.author,
+                image='posts/small.gif',
+            )
+        )
+
+    def test_views_show_thumbnail_in_context(self):
+        urls = [
+            reverse('posts:index'),
+            reverse(
+                'posts:group_list',
+                kwargs={'slug': ThumbnailTest.group.slug}
+            ),
+            reverse(
+                'posts:profile',
+                kwargs={'username': ThumbnailTest.author.username}
+            ),
+            reverse(
+                'posts:post_detail',
+                kwargs={'post_id': ThumbnailTest.test_post.id}
+            )
+        ]
+        for url in urls:
+            response = self.authorized_client.get(url)
+            if response.context['page_obj']:
+                self.assertIn(
+                    ThumbnailTest.uploaded_image,
+                    response.context['page_obj'].object_list
+                )
+            else:
+                self.assertEqual(
+                    ThumbnailTest.uploaded_image,
+                    getattr(response.context.get('post'), 'image')
+                )

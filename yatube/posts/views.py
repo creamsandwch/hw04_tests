@@ -51,7 +51,10 @@ def post_detail(request, post_id):
 
 @login_required
 def post_create(request):
-    form = PostForm(request.POST or None)
+    form = PostForm(
+        request.POST or None,
+        request.FILES or None
+    )
     context = {
         'form': form,
     }
@@ -67,7 +70,11 @@ def post_edit(request, post_id):
     edited_post = get_object_or_404(Post, id=post_id)
     if not request.user == edited_post.author:
         return redirect('posts:post_detail', post_id)
-    form = PostForm(request.POST or None, instance=edited_post)
+    form = PostForm(
+        request.POST or None,
+        request.FILES or None,
+        instance=edited_post
+    )
     context = {
         'form': form,
         'is_edit': True,
