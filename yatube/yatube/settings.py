@@ -7,6 +7,9 @@ POST_CHARS_VIEWED = 15
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
 SECRET_KEY = 'lcgy06%6)qtf8n5vzfetazxhubev@=%lgxi7^)=5&6jegv!r$k'
 
 DEBUG = False
@@ -31,6 +34,7 @@ INSTALLED_APPS = [
     'users.apps.UsersConfig',
     'core.apps.CoreConfig',
     'about.apps.AboutConfig',
+    'sorl.thumbnail',
 ]
 
 MIDDLEWARE = [
