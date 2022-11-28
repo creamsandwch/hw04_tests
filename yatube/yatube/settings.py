@@ -9,8 +9,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 SECRET_KEY = 'lcgy06%6)qtf8n5vzfetazxhubev@=%lgxi7^)=5&6jegv!r$k'
 
+DEBUG = False
 
-DEBUG = True
+CSRF_FAILURE_VIEW = 'core.views.csrf_failure'
 
 ALLOWED_HOSTS = [
     'localhost',
