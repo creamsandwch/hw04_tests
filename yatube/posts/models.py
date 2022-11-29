@@ -50,3 +50,31 @@ class Post(models.Model):
 
     def __str__(self) -> str:
         return self.text[:settings.POST_CHARS_VIEWED]
+
+
+class Comment(models.Model):
+    post = models.ForeignKey(
+        Post,
+        on_delete=models.CASCADE,
+        verbose_name='пост',
+        related_name='comments'
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name='автор',
+        related_name='comments'
+    )
+    text = models.TextField(
+        verbose_name='текст комментария'
+    )
+    created = models.DateTimeField(
+        verbose_name='дата публикации',
+        auto_now_add=True,
+    )
+
+    class Meta:
+        ordering = ['-created']
+
+    def __str__(self):
+        return self.text[:settings.POST_CHARS_VIEWED]

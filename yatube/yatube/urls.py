@@ -3,6 +3,7 @@ from django.urls import include, path
 from django.conf.urls.static import static
 from django.conf import settings
 
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('auth/', include('users.urls', namespace='users')),
@@ -10,6 +11,7 @@ urlpatterns = [
     path('about/', include('about.urls', namespace='about')),
     path('', include('posts.urls', namespace='posts')),
 ]
+
 
 handler404 = 'core.views.page_not_found'
 

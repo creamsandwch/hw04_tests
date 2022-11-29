@@ -42,6 +42,7 @@
         <img class="card-img my-2" src="{{ im.url }}">
         {% endthumbnail %}
         <p>{{ post.text|linebreaksbr }}</p>
+        {% include 'posts/includes/comment_form.html' %}
       </article>
   </div> 
 {% endblock %}  
