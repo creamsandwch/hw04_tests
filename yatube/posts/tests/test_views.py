@@ -7,7 +7,7 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django import forms
 
-from ..models import User, Post, Group
+from ..models import User, Post, Group, Comment
 from django.conf import settings
 
 
@@ -52,6 +52,11 @@ class PostViewsTest(TestCase):
             author=cls.author,
             image=cls.uploaded
         )
+        cls.test_comment = Comment.objects.create(
+            text='Текст комментария',
+            post=cls.test_post,
+            author=cls.author,
+        )
 
     @classmethod
     def tearDownClass(cls):
@@ -70,6 +75,21 @@ class PostViewsTest(TestCase):
             post_fields['group'] = PostViewsTest.group_2
         post_fields['author'] = PostViewsTest.author
         return post_fields
+
+    def test_sent_comment_shows_in_post_detail_context(self):
+        """Проверяем, что в контекст страницы с детальными данными
+        о посте передается комментарий к посту."""
+        response = self.authorized_client.get(
+            reverse(
+                'posts:post_detail',
+                kwargs={'post_id': PostViewsTest.test_post.id}
+            )
+        )
+        self.assertContains(
+            response,
+            PostViewsTest.test_comment,
+            msg_prefix='Комментарий к посту не отображен на странице.'
+        )
 
     def test_views_use_correct_templates(self):
         """Проверяем, что view-функции приложения posts
@@ -190,7 +210,7 @@ class PostViewsTest(TestCase):
             PostViewsTest.author,
             msg_prefix=(
                 'В контекст не передан пользователь-автор,'
-                ' или передан неверный:'
+                ' или передан неверный.'
             )
         )
         post_attrs = self.fill_post_fields(slug_num=1)

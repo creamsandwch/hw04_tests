@@ -6,7 +6,7 @@ from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from django.conf import settings
 
-from posts.models import Post, Group, User
+from posts.models import Post, Group, User, Comment
 
 
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
@@ -16,6 +16,7 @@ TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 class PostFormTests(TestCase):
     """Форма для создания и редактирования поста."""
     def setUp(self):
+        self.guest_client = Client()
         self.authorized_client = Client()
         self.authorized_client.force_login(PostFormTests.author)
 
@@ -112,7 +113,7 @@ class PostFormTests(TestCase):
 
     def test_thumbnail_sent_in_post_form(self):
         """Проверяем, создается ли пост, если в PostForm отправить
-        картинку"""
+        картинку."""
         posts_count = Post.objects.count()
         form_data = {
             'text': 'Тестовый текст',
@@ -132,4 +133,54 @@ class PostFormTests(TestCase):
                 author=PostFormTests.author,
                 image='posts/small.gif',
             )
+        )
+
+    def test_commentform_creates_comment(self):
+        """Валидная форма CommentForm создает запись в БД."""
+        comments_count = Comment.objects.count()
+        form_data = {
+            'text': 'Текст комментария.',
+            'post': PostFormTests.post.pk,
+            'author': PostFormTests.author.pk,
+        }
+        self.authorized_client.post(
+            reverse(
+                'posts:add_comment',
+                kwargs={'post_id': PostFormTests.post.id}
+            ),
+            data=form_data
+        )
+        self.assertEqual(
+            comments_count + 1,
+            Comment.objects.count(),
+            'Комментарий не был записан в БД.')
+        self.assertTrue(
+            Comment.objects.filter(
+                text=form_data['text'],
+                post=PostFormTests.post,
+                author=PostFormTests.author,
+            ),
+            'Данные комментария были переданы формой некорректно.'
+        )
+
+    def test_unauthorized_user_cant_comment_on_post(self):
+        """Проверяем, что неавторизованный пользователь не может
+        комментировать посты."""
+        comments_count = Comment.objects.count()
+        form_data = {
+            'text': 'Текст комментария.',
+            'post': PostFormTests.post.pk,
+            'author': PostFormTests.author.pk,
+        }
+        self.guest_client.post(
+            reverse(
+                'posts:add_comment',
+                kwargs={'post_id': PostFormTests.post.id}
+            ),
+            data=form_data,
+        )
+        self.assertEqual(
+            comments_count,
+            Comment.objects.count(),
+            'Комментарий был записан в БД неавторизованным пользователем.'
         )
