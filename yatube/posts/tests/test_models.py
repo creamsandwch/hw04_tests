@@ -32,7 +32,7 @@ class PostModelTest(TestCase):
         """Проверяем, что у полей моделей корректно заданы verbose-имена"""
         field_verbose_names = {
             'text': 'Текст поста',
-            'pub_date': 'Дата публикации',
+            'created': 'Дата создания',
             'author': 'Автор',
             'group': 'Группа'
         }

@@ -1,5 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.db import models
+
+from core.models import CreatedModel
 from django.conf import settings
 
 
@@ -15,14 +17,10 @@ class Group(models.Model):
         return self.title
 
 
-class Post(models.Model):
+class Post(CreatedModel):
     text = models.TextField(
         verbose_name='текст поста',
         help_text='Введите текст поста',
-    )
-    pub_date = models.DateTimeField(
-        verbose_name='дата публикации',
-        auto_now_add=True,
     )
     author = models.ForeignKey(
         User,
@@ -46,13 +44,13 @@ class Post(models.Model):
     )
 
     class Meta:
-        ordering = ['-pub_date']
+        ordering = ['-created']
 
     def __str__(self) -> str:
         return self.text[:settings.POST_CHARS_VIEWED]
 
 
-class Comment(models.Model):
+class Comment(CreatedModel):
     post = models.ForeignKey(
         Post,
         on_delete=models.CASCADE,
@@ -67,10 +65,6 @@ class Comment(models.Model):
     )
     text = models.TextField(
         verbose_name='текст комментария'
-    )
-    created = models.DateTimeField(
-        verbose_name='дата публикации',
-        auto_now_add=True,
     )
 
     class Meta:
