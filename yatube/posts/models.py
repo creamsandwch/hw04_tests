@@ -26,6 +26,7 @@ class Post(CreatedModel):
         User,
         on_delete=models.CASCADE,
         verbose_name='автор',
+        help_text='Автор поста',
         related_name='posts',
     )
     group = models.ForeignKey(
@@ -38,7 +39,8 @@ class Post(CreatedModel):
         related_name='posts',
     )
     image = models.ImageField(
-        verbose_name='Картинка',
+        verbose_name='картинка',
+        help_text='Картинка поста',
         upload_to='posts/',
         blank=True,
     )
